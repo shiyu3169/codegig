@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/database");
 const Gig = require("../models/Gig");
+const Sequelize = require("sequelize");
+const Op = Sequelize.Op;
 
 // Get gig list
 router.get("/", (req, res) =>
@@ -17,26 +19,64 @@ router.get("/add", (req, res) => res.render("add"));
 
 // Add a gig
 router.post("/add", (req, res) => {
-  const data = {
-    title: "Simple Wordpress Website",
-    technologies: "php,html,css",
-    budget: "$1000",
-    description:
-      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem I",
-    contact_email: "user2@gmail.com"
-  };
+  let { title, technologies, budget, description, contact_email } = req.body;
+  const errors = [];
 
-  const { title, technologies, budget, description, contact_email } = data;
+  // Validation
+  if (!title) {
+    errors.push({ text: "Please add a title" });
+  }
+  if (!technologies) {
+    errors.push({ text: "Please add some technologies" });
+  }
+  if (!description) {
+    errors.push({ text: "Please add a description" });
+  }
+  if (!contact_email) {
+    errors.push({ text: "Please add a contact_email" });
+  }
 
-  // Insert into table
-  Gig.create({
-    title,
-    technologies,
-    budget,
-    description,
-    contact_email
+  // Check for errors
+  if (errors.length > 0) {
+    res.render("add", {
+      errors,
+      title,
+      technologies,
+      budget,
+      description,
+      contact_email
+    });
+  } else {
+    // Format budget
+    if (!budget) {
+      budget = "Unknown";
+    } else {
+      budget = `$${budget}`;
+    }
+
+    // Format technologies - make lower case adnd remove space after comma
+    technologies = technologies.toLowerCase().replace(/, /g, ",");
+
+    // Insert into table
+    Gig.create({
+      title,
+      technologies,
+      budget,
+      description,
+      contact_email
+    })
+      .then(gig => res.redirect("/gigs"))
+      .catch(err => console.log(err));
+  }
+});
+
+// Search for gigs
+router.get("/search", (req, res) => {
+  const { term } = req.query;
+  Gig.findAll({
+    where: { technologies: { [Op.like]: `%${term.toLowerCase()}%` } }
   })
-    .then(gig => res.redirect("/gigs"))
+    .then(gigs => res.render("gigs", { gigs }))
     .catch(err => console.log(err));
 });
 
